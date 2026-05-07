@@ -96,27 +96,38 @@ class XueqiuChannel(Channel):
     def _load_cookies_from_browser(self) -> bool:
         """Try to silently load Xueqiu cookies from the local Chrome browser.
 
-        Only succeeds when browser_cookie3 is installed AND the user is logged in
-        (xq_a_token present).  Failures are silently ignored so that agents without
-        a local browser keep working.
+        Only succeeds when a supported optional cookie reader is installed AND
+        the user is logged in (xq_a_token present). Failures are silently
+        ignored so that agents without a local browser keep working.
         """
         try:
             try:
                 import rookiepy
+            except ImportError:
+                rookiepy = None
+
+            if rookiepy is not None:
                 cookies = rookiepy.chrome([".xueqiu.com"])
                 if not any(c.get("name") == "xq_a_token" for c in cookies):
                     return False
                 for c in cookies:
-                    self._cookie_jar.set(c["name"], c["value"], domain=c.get("domain", ".xueqiu.com"))
+                    name = c.get("name")
+                    value = c.get("value")
+                    if name and value is not None:
+                        self._inject_cookie_string(f"{name}={value}")
                 return True
-            except ImportError:
+
+            try:
                 import browser_cookie3
-                cookies = list(browser_cookie3.chrome(domain_name=".xueqiu.com"))
-                if not any(c.name == "xq_a_token" for c in cookies):
-                    return False
-                for c in cookies:
-                    self._cookie_jar.set_cookie(c)
-                return True
+            except ImportError:
+                return False
+
+            cookies = list(browser_cookie3.chrome(domain_name=".xueqiu.com"))
+            if not any(c.name == "xq_a_token" for c in cookies):
+                return False
+            for c in cookies:
+                self._cookie_jar.set_cookie(c)
+            return True
         except (OSError, RuntimeError, ValueError) as e:
             # Browser cookie databases can throw a wide variety of errors
             # (file locked, schema changed, OS keyring denied, encrypted

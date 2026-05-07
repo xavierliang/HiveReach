@@ -4,6 +4,8 @@
 import json
 import shutil
 import subprocess
+import sys
+from types import SimpleNamespace
 from urllib.error import URLError
 
 from hivereach.channels import get_all_channels, get_channel
@@ -609,6 +611,36 @@ class TestXueqiuChannel:
         assert ch._cookies_initialized is True
         cookie_names = {c.name for c in ch._cookie_jar}
         assert "xq_a_token" in cookie_names
+
+    def test_load_cookies_from_browser_handles_missing_optional_readers(self, monkeypatch):
+        ch = XueqiuChannel()
+        monkeypatch.delitem(sys.modules, "rookiepy", raising=False)
+        monkeypatch.delitem(sys.modules, "browser_cookie3", raising=False)
+
+        def block_optional_cookie_readers(name, *args, **kwargs):
+            if name in {"rookiepy", "browser_cookie3"}:
+                raise ImportError(name)
+            return original_import(name, *args, **kwargs)
+
+        original_import = __import__
+        monkeypatch.setattr("builtins.__import__", block_optional_cookie_readers)
+
+        assert ch._load_cookies_from_browser() is False
+
+    def test_load_cookies_from_browser_uses_rookiepy_cookie_dicts(self, monkeypatch):
+        ch = XueqiuChannel()
+        fake_rookiepy = SimpleNamespace(
+            chrome=lambda domains: [
+                {"name": "xq_a_token", "value": "TOKEN", "domain": ".xueqiu.com"},
+                {"name": "xq_is_login", "value": "1", "domain": ".xueqiu.com"},
+            ]
+        )
+        monkeypatch.setitem(sys.modules, "rookiepy", fake_rookiepy)
+
+        assert ch._load_cookies_from_browser() is True
+        cookies = {c.name: c.value for c in ch._cookie_jar}
+        assert cookies["xq_a_token"] == "TOKEN"
+        assert cookies["xq_is_login"] == "1"
 
     def test_get_json_sends_referer_and_browser_ua(self, monkeypatch):
         """_get_json() must send Referer and a browser-like User-Agent."""
