@@ -72,14 +72,23 @@ class Config:
             pass
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get a config value. Also checks environment variables (uppercase)."""
-        # Config file first
+        """Get a config value, with environment variable taking precedence.
+
+        Lookup order (12-factor):
+          1. ``$KEY_UPPERCASE`` from the environment (if set, even to "")
+          2. ``self.data[key]`` from ``~/.hivereach/config.yaml``
+          3. ``default``
+
+        Persistent settings live in the YAML file; environment variables
+        provide per-process overrides for CI, containers, and ad-hoc shells.
+        An empty-string env var (``HIVEREACH_FOO=``) intentionally overrides
+        the file so users can clear a stored value without editing YAML.
+        """
+        env_val = os.environ.get(key.upper())
+        if env_val is not None:
+            return env_val
         if key in self.data:
             return self.data[key]
-        # Then env var (uppercase)
-        env_val = os.environ.get(key.upper())
-        if env_val:
-            return env_val
         return default
 
     def set(self, key: str, value: Any):

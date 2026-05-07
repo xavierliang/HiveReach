@@ -36,10 +36,17 @@ class TestConfig:
         monkeypatch.setenv("TEST_ENV_KEY", "env_value")
         assert tmp_config.get("test_env_key") == "env_value"
 
-    def test_config_file_priority_over_env(self, tmp_config, monkeypatch):
+    def test_env_overrides_config_file(self, tmp_config, monkeypatch):
         monkeypatch.setenv("MY_KEY", "from_env")
         tmp_config.set("my_key", "from_config")
-        assert tmp_config.get("my_key") == "from_config"
+        assert tmp_config.get("my_key") == "from_env"
+
+    def test_empty_env_overrides_config_file(self, tmp_config, monkeypatch):
+        # Setting HIVEREACH_FOO= should clear the stored value without
+        # requiring users to edit YAML.
+        monkeypatch.setenv("MY_KEY", "")
+        tmp_config.set("my_key", "from_config")
+        assert tmp_config.get("my_key") == ""
 
     def test_save_and_load(self, tmp_config):
         tmp_config.set("key1", "value1")
