@@ -9,10 +9,13 @@ Usage:
     hivereach setup
 """
 
+import subprocess
 import sys
 import argparse
 import json
 import os
+
+from loguru import logger
 
 from hivereach import __version__
 
@@ -30,9 +33,9 @@ def _ensure_utf8_console():
             sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         if hasattr(sys.stderr, "buffer"):
             sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
+    except (OSError, ValueError, AttributeError) as e:
         # Do not crash CLI just because encoding patch failed.
-        pass
+        logger.debug(f"utf8 console patch failed: {type(e).__name__}: {e}")
 
 
 def _configure_logging(verbose: bool = False):
@@ -282,7 +285,8 @@ def _install_phase_cookies(args, config, env: str, requested_channels: set) -> N
             found = _try_browser_cookies("firefox", config)
         if not found:
             print("  -- No cookies found (normal if you haven't logged into these sites)")
-    except Exception:
+    except (OSError, RuntimeError, ImportError, ValueError) as e:
+        logger.debug(f"browser cookie read failed: {type(e).__name__}: {e}")
         print("  -- Could not read browser cookies (browser might be open or password was denied)")
 
 
@@ -357,7 +361,8 @@ def _install_skill():
             try:
                 skill_pkg = importlib.resources.files("hivereach").joinpath("skill")
                 skill_md = skill_pkg.joinpath("SKILL.md").read_text(encoding="utf-8")
-            except Exception:
+            except (ModuleNotFoundError, FileNotFoundError, OSError, AttributeError) as e:
+                logger.debug(f"importlib.resources skill lookup failed, falling back: {type(e).__name__}: {e}")
                 from pathlib import Path
                 skill_pkg = Path(__file__).resolve().parent / "skill"
                 skill_md = (skill_pkg / "SKILL.md").read_text(encoding="utf-8")
@@ -379,7 +384,8 @@ def _install_skill():
                         f.write(content)
 
             return True
-        except Exception as e:
+        except (OSError, ModuleNotFoundError, AttributeError) as e:
+            logger.debug(f"skill copy failed: {type(e).__name__}: {e}")
             print(f"  Warning: Could not install skill: {e}")
             return False
 
@@ -441,7 +447,8 @@ def _uninstall_skill():
                 shutil.rmtree(skill_path)
                 print(f"  Removed {platform_name} skill: {skill_path}")
                 removed = True
-            except Exception as e:
+            except OSError as e:
+                logger.debug(f"rmtree {skill_path} failed: {type(e).__name__}: {e}")
                 print(f"  Could not remove {skill_path}: {e}")
 
     if not removed:
@@ -518,7 +525,8 @@ def _install_system_deps():
                     print("  ✅ gh CLI installed")
                 else:
                     print("  [!]  gh CLI install failed. You can try: snap install gh, or download from https://github.com/cli/cli/releases")
-            except Exception:
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug(f"apt-get gh install failed: {type(e).__name__}: {e}")
                 print("  [!]  gh CLI install failed. You can try: snap install gh, or download from https://github.com/cli/cli/releases")
         elif os_type == "darwin":
             if shutil.which("brew"):
@@ -528,7 +536,8 @@ def _install_system_deps():
                         print("  ✅ gh CLI installed")
                     else:
                         print("  [!]  gh CLI install failed. Try: brew install gh")
-                except Exception:
+                except (subprocess.SubprocessError, OSError) as e:
+                    logger.debug(f"brew gh install failed: {type(e).__name__}: {e}")
                     print("  [!]  gh CLI install failed. Try: brew install gh")
             else:
                 print("  [!]  gh CLI not found. Install: https://cli.github.com")
@@ -554,8 +563,8 @@ def _install_system_deps():
             )
             try:
                 os.unlink(script_path)
-            except Exception:
-                pass
+            except OSError as e:
+                logger.debug(f"unlink {script_path} failed: {type(e).__name__}: {e}")
             subprocess.run(
                 ["apt-get", "install", "-y", "-qq", "nodejs"],
                 capture_output=True, timeout=120,
@@ -564,7 +573,8 @@ def _install_system_deps():
                 print("  ✅ Node.js installed")
             else:
                 print("  [!]  Node.js install failed. Try: apt install nodejs npm, or nvm install 22, or download from https://nodejs.org")
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"Node.js install failed: {type(e).__name__}: {e}")
             print("  [!]  Node.js install failed. Try: apt install nodejs npm, or nvm install 22, or download from https://nodejs.org")
 
     # ── undici (proxy support for Node.js fetch) ──
@@ -578,7 +588,8 @@ def _install_system_deps():
             try:
                 subprocess.run([npm_cmd, "install", "-g", "undici"], capture_output=True, encoding="utf-8", errors="replace", timeout=60)
                 print("  ✅ undici installed (Node.js proxy support)")
-            except Exception:
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug(f"undici install failed: {type(e).__name__}: {e}")
                 print("  -- undici install failed (optional — may not work behind proxies)")
 
     # ── yt-dlp JS runtime config (YouTube requires external JS runtime) ──
@@ -597,7 +608,8 @@ def _install_system_deps():
                 with open(ytdlp_config, "a") as f:
                     f.write("--js-runtimes node\n")
                 print("  ✅ yt-dlp configured to use Node.js as JS runtime (YouTube)")
-            except Exception:
+            except OSError as e:
+                logger.debug(f"yt-dlp config write failed: {type(e).__name__}: {e}")
                 print("  -- Could not configure yt-dlp JS runtime (YouTube may not work)")
 
     # NOTE: twitter-cli, weibo, xiaoyuzhou, wechat, xhs-cli etc. are optional.
@@ -628,7 +640,8 @@ def _install_xiaoyuzhou_deps():
                 _shutil.copy2(script_src, script_dst)
                 os.chmod(script_dst, 0o755)
                 print("  ✅ Xiaoyuzhou transcription script installed")
-            except Exception as e:
+            except OSError as e:
+                logger.debug(f"xiaoyuzhou script install failed: {type(e).__name__}: {e}")
                 print(f"  [!]  Failed to install script: {e}")
         else:
             print("  [!]  Script source not found in package")
@@ -707,8 +720,8 @@ def _install_weibo_deps():
             if "weibo" in r.stdout:
                 print("  ✅ Weibo MCP already configured")
                 return
-        except Exception:
-            pass
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"mcporter config list (weibo) failed: {type(e).__name__}: {e}")
 
     # Install from our fork (has visitor passport auth fix)
     try:
@@ -718,7 +731,8 @@ def _install_weibo_deps():
             check=True, timeout=120
         )
         print("  ✅ mcp-server-weibo installed (Panniantong fork)")
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"pip install mcp-server-weibo failed: {type(e).__name__}: {e}")
         print(f"  [!]  mcp-server-weibo install failed: {e}")
         return
 
@@ -730,7 +744,8 @@ def _install_weibo_deps():
                 check=True, capture_output=True, timeout=10
             )
             print("  ✅ Weibo MCP registered with mcporter")
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"mcporter config add weibo failed: {type(e).__name__}: {e}")
             print("  [!]  mcporter config add failed. Run manually: mcporter config add weibo --command 'mcp-server-weibo'")
     else:
         print("  -- mcporter not found, skipping MCP registration. Install mcporter first, then run: mcporter config add weibo --command 'mcp-server-weibo'")
@@ -782,7 +797,8 @@ def _install_wechat_deps():
                 print(f"  ✅ WeChat Python packages installed ({', '.join(pkgs)})")
             else:
                 print(f"  [!]  Some WeChat packages failed to install. Try: pip install {' '.join(pkgs)}")
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"WeChat pip install failed: {type(e).__name__}: {e}")
             print(f"  [!]  WeChat packages install failed. Try: pip install {' '.join(pkgs)}")
 
     # Clone wechat-article-for-ai tool
@@ -802,7 +818,8 @@ def _install_wechat_deps():
                 print("  ✅ wechat-article-for-ai tool installed")
             else:
                 print("  [!]  wechat-article-for-ai clone failed. Try: git clone https://github.com/Panniantong/wechat-article-for-ai.git " + wechat_dir)
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"wechat-article-for-ai clone failed: {type(e).__name__}: {e}")
             print("  [!]  wechat-article-for-ai clone failed. Try: git clone https://github.com/Panniantong/wechat-article-for-ai.git " + wechat_dir)
 
 
@@ -880,7 +897,8 @@ def _install_mcporter():
             else:
                 print("  [X] mcporter install failed. Retry: npm install -g mcporter (check network/timeout), or try: npx mcporter@latest list")
                 return
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"mcporter install failed: {type(e).__name__}: {e}")
             print(f"  [X] mcporter install failed: {e}")
             return
 
@@ -897,7 +915,8 @@ def _install_mcporter():
             print("  ✅ Exa search configured (free, no API key needed)")
         else:
             print("  ✅ Exa search already configured")
-    except Exception:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"Exa configure failed: {type(e).__name__}: {e}")
         print("  [!]  Could not configure Exa. Run manually: mcporter config add exa https://mcp.exa.ai/mcp")
 
     # NOTE: xhs-cli is now optional, installed via --channels=xiaohongshu
@@ -945,17 +964,16 @@ def _detect_environment():
                     content = f.read().lower()
                 if any(x in content for x in ["amazon", "google", "microsoft", "digitalocean", "linode", "vultr", "hetzner"]):
                     indicators += 2
-            except Exception:
-                pass
+            except OSError as e:
+                logger.debug(f"read {cloud_file} failed: {type(e).__name__}: {e}")
 
     # systemd-detect-virt
     try:
-        import subprocess
         result = subprocess.run(["systemd-detect-virt"], capture_output=True, encoding="utf-8", errors="replace", timeout=3)
         if result.returncode == 0 and result.stdout.strip() != "none":
             indicators += 1
-    except Exception:
-        pass
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"systemd-detect-virt failed: {type(e).__name__}: {e}")
 
     return "server" if indicators >= 2 else "local"
 
@@ -1042,7 +1060,8 @@ def _cmd_configure(args):
                         print("✅ Twitter access works!")
                     else:
                         print("[!] Auth check failed (cookies might be wrong)")
-            except Exception as e:
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug(f"twitter auth check failed: {type(e).__name__}: {e}")
                 print(f"[X] Failed: {e}")
         else:
             print("[X] Could not find auth_token and ct0 in your input.")
@@ -1193,7 +1212,8 @@ def _configure_xhs_cookies(value):
             print("   Start it first:")
             print("   docker run -d --name xiaohongshu-mcp -p 18060:18060 xpzouying/xiaohongshu-mcp")
             return
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"docker ps check failed: {type(e).__name__}: {e}")
         print(f"[X] Could not check Docker: {e}")
         return
 
@@ -1206,7 +1226,8 @@ def _configure_xhs_cookies(value):
         cookie_path_in_container = result.stdout.strip()
         if not cookie_path_in_container:
             cookie_path_in_container = "/app/cookies.json"  # fallback: absolute path in workdir
-    except Exception:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"docker exec printenv failed: {type(e).__name__}: {e}")
         cookie_path_in_container = "/app/cookies.json"
 
     # Write cookies into the container
@@ -1236,10 +1257,12 @@ def _configure_xhs_cookies(value):
                 capture_output=True, encoding="utf-8", timeout=30,
             )
             print("done")
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"docker restart failed: {type(e).__name__}: {e}")
             print(f"\n  [!] Could not restart container: {e}")
             print(f"  Restart manually: docker restart {container_name}")
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug(f"cookie write to container failed: {type(e).__name__}: {e}")
         print(f"[X] Failed to write cookies: {e}")
         return
 
@@ -1258,7 +1281,8 @@ def _configure_xhs_cookies(value):
                 print("[!] Login check returned unexpected result:")
                 print(f"  {result.stdout.strip()[:200]}")
                 print("  Cookies were written but login might not be valid. Try fresh cookies.")
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"xhs login verify failed: {type(e).__name__}: {e}")
             print(f"[!] Could not verify: {e}")
     else:
         print("  (mcporter not found, skipping verification)")
@@ -1294,7 +1318,8 @@ def _cmd_uninstall(args):
                     shutil.rmtree(config_dir)
                     print(f"  Removed config directory: {config_dir}")
                     removed_any = True
-                except Exception as e:
+                except OSError as e:
+                    logger.debug(f"rmtree {config_dir} failed: {type(e).__name__}: {e}")
                     print(f"  Could not remove {config_dir}: {e}")
         else:
             print(f"  Config directory not found (already clean): {config_dir}")
@@ -1318,7 +1343,8 @@ def _cmd_uninstall(args):
                     shutil.rmtree(skill_path)
                     print(f"  Removed {platform_name} skill: {skill_path}")
                     removed_any = True
-                except Exception as e:
+                except OSError as e:
+                    logger.debug(f"rmtree {skill_path} failed: {type(e).__name__}: {e}")
                     print(f"  Could not remove {skill_path}: {e}")
 
     # ── 3. mcporter MCP entries ──
@@ -1338,8 +1364,8 @@ def _cmd_uninstall(args):
                         )
                         print(f"  Removed mcporter entry: {mcp_name}")
                         removed_any = True
-            except Exception:
-                pass
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug(f"mcporter remove {mcp_name} failed: {type(e).__name__}: {e}")
 
     # ── 4. Summary and optional steps ──
     print()
@@ -1418,7 +1444,8 @@ def _cmd_setup():
                     else:
                         print("  [!] 自动配置失败，请手动执行：")
                         print("     mcporter config add exa https://mcp.exa.ai/mcp")
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"Exa setup check failed: {type(e).__name__}: {e}")
             print("  [!] 无法检查 Exa 配置，请手动执行：")
             print("     mcporter config add exa https://mcp.exa.ai/mcp")
         print()
