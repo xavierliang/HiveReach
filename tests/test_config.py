@@ -103,3 +103,20 @@ class TestConfig:
             # File should be owner-only read/write (0o600)
             assert not (mode & stat.S_IRGRP), "group read should not be set"
             assert not (mode & stat.S_IROTH), "other read should not be set"
+
+    def test_save_tightens_existing_file_permissions(self, tmp_path):
+        import stat
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("POSIX mode bits are not reliable on Windows")
+
+        config_file = tmp_path / "existing_config.yaml"
+        config_file.write_text("old: value\n", encoding="utf-8")
+        config_file.chmod(0o644)
+
+        config = Config(config_path=config_file)
+        config.set("secret_key", "my-secret")
+
+        mode = stat.S_IMODE(config_file.stat().st_mode)
+        assert mode == 0o600

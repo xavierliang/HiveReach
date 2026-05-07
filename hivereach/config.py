@@ -66,10 +66,10 @@ class Config:
         except OSError:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 yaml.dump(self.data, f, default_flow_style=False, allow_unicode=True)
-            try:
-                os.chmod(self.config_path, stat.S_IRUSR | stat.S_IWUSR)
-            except OSError:
-                pass
+        try:
+            os.chmod(self.config_path, stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a config value. Also checks environment variables (uppercase)."""
