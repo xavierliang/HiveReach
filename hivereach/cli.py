@@ -141,14 +141,26 @@ def main():
 # ── Command handlers ────────────────────────────────
 
 
+# Channel installers exposed by name to --channels parsing.
+# Kept module-level so _install_phase_channels and the parser stay in sync.
+_CHANNEL_INSTALLERS = {
+    "twitter":     "_install_twitter_deps",
+    "weibo":       "_install_weibo_deps",
+    "wechat":      "_install_wechat_deps",
+    "xiaoyuzhou":  "_install_xiaoyuzhou_deps",
+    "xiaohongshu": "_install_xhs_deps",
+    "reddit":      "_install_reddit_deps",
+    "bilibili":    "_install_bili_deps",
+    # xueqiu: cookie-only, no install step
+    # douyin/linkedin: manual setup, no auto-install
+}
+_COOKIE_CHANNELS = {"twitter", "xueqiu", "bilibili"}
+_ALL_CHANNELS = set(_CHANNEL_INSTALLERS) | {"xueqiu", "douyin", "linkedin"}
+
+
 def _cmd_install(args):
     """One-shot deterministic installer."""
-    import os
     from hivereach.config import Config
-    from hivereach.doctor import check_all, format_report
-
-    safe_mode = args.safe
-    dry_run = args.dry_run
 
     config = Config()
     print()
@@ -156,117 +168,137 @@ def _cmd_install(args):
     print("=" * 40)
 
     # Ensure tools directory exists (for upstream tool repos)
-    tools_dir = os.path.expanduser("~/.hivereach/tools")
-    os.makedirs(tools_dir, exist_ok=True)
+    os.makedirs(os.path.expanduser("~/.hivereach/tools"), exist_ok=True)
 
-    if dry_run:
+    if args.dry_run:
         print("DRY RUN — showing what would be done (no changes)")
         print()
-    if safe_mode:
+    if args.safe:
         print("SAFE MODE — skipping automatic system changes")
         print()
 
-    # ── Parse --channels ──
-    CHANNEL_INSTALLERS = {
-        "twitter":     _install_twitter_deps,
-        "weibo":       _install_weibo_deps,
-        "wechat":      _install_wechat_deps,
-        "xiaoyuzhou":  _install_xiaoyuzhou_deps,
-        "xiaohongshu": _install_xhs_deps,
-        "reddit":      _install_reddit_deps,
-        "bilibili":    _install_bili_deps,
-        # xueqiu: cookie-only, no install step
-        # douyin/linkedin: manual setup, no auto-install
-    }
-    COOKIE_CHANNELS = {"twitter", "xueqiu", "bilibili"}
+    requested_channels = _install_parse_channels(args.channels)
+    env = _install_phase_check_env(args, config)
+    _install_phase_system_deps(args)
+    _install_phase_channels(args, requested_channels)
+    _install_phase_cookies(args, config, env, requested_channels)
+    _install_phase_finalize(args, config, env, requested_channels)
 
-    requested_channels = set()
-    if args.channels:
-        raw = [c.strip().lower() for c in args.channels.split(",") if c.strip()]
-        if "all" in raw:
-            requested_channels = set(CHANNEL_INSTALLERS.keys()) | {"xueqiu", "douyin", "linkedin"}
-        else:
-            requested_channels = set(raw)
 
-    # Auto-detect environment
+def _install_parse_channels(channels_arg: str) -> set:
+    """Parse the --channels CSV into a set of channel names."""
+    if not channels_arg:
+        return set()
+    raw = [c.strip().lower() for c in channels_arg.split(",") if c.strip()]
+    if "all" in raw:
+        return set(_ALL_CHANNELS)
+    return set(raw)
+
+
+def _install_phase_check_env(args, config) -> str:
+    """Resolve env (auto-detect if needed), apply --proxy, return resolved env."""
     env = args.env
     if env == "auto":
         env = _detect_environment()
 
     if env == "server":
-        print(f"Environment: Server/VPS (auto-detected)")
+        print("Environment: Server/VPS (auto-detected)")
     else:
-        print(f"Environment: Local computer (auto-detected)")
+        print("Environment: Local computer (auto-detected)")
 
-    # Apply explicit flags
     if args.proxy:
-        if dry_run:
-            print(f"[dry-run] Would configure proxy for Bilibili")
+        if args.dry_run:
+            print("[dry-run] Would configure proxy for Bilibili")
         else:
             config.set("bilibili_proxy", args.proxy)
-            print(f"✅ Proxy configured for Bilibili")
+            print("✅ Proxy configured for Bilibili")
+    return env
 
-    # ── Install core system dependencies (lightweight, always) ──
+
+def _install_phase_system_deps(args) -> None:
+    """Install/announce gh, Node, yt-dlp, and mcporter (always part of install)."""
     print()
-    if dry_run:
+    if args.dry_run:
         _install_system_deps_dryrun()
-    elif safe_mode:
+    elif args.safe:
         _install_system_deps_safe()
     else:
         _install_system_deps()
 
-    # ── mcporter (for Exa search) ──
     print()
-    if dry_run:
+    if args.dry_run:
         print("[dry-run] Would install mcporter and configure Exa search")
-    elif safe_mode:
+    elif args.safe:
         _install_mcporter_safe()
     else:
         _install_mcporter()
 
-    # ── Install optional channels (only if --channels specified) ──
-    if requested_channels and not dry_run and not safe_mode:
-        print()
-        print("Installing optional channels...")
-        for ch_name in sorted(requested_channels):
-            installer = CHANNEL_INSTALLERS.get(ch_name)
-            if installer:
-                installer()
 
-    if requested_channels and dry_run:
+def _install_phase_channels(args, requested_channels: set) -> None:
+    """Run the per-channel installers requested via --channels."""
+    if not requested_channels:
+        return
+
+    if args.dry_run:
         print()
         print(f"[dry-run] Would install optional channels: {', '.join(sorted(requested_channels))}")
+        return
 
-    # ── Auto-import cookies (only if cookie-needing channels are requested) ──
-    needs_cookies = bool(requested_channels & COOKIE_CHANNELS)
-    if env == "local" and needs_cookies and not safe_mode and not dry_run:
-        print()
-        print("Importing cookies from browser...")
-        print("  (macOS may ask for your login password to access the Keychain — this is normal,")
-        print("   it only happens once during install. Enter your password or click 'Allow'.)")
-        try:
-            from hivereach.cookie_extract import configure_from_browser
-            results = configure_from_browser("chrome", config)
-            found = False
-            for platform, success, message in results:
-                if success:
-                    print(f"  ✅ {platform}: {message}")
-                    found = True
-            if not found:
-                results = configure_from_browser("firefox", config)
-                for platform, success, message in results:
-                    if success:
-                        print(f"  ✅ {platform}: {message}")
-                        found = True
-            if not found:
-                print("  -- No cookies found (normal if you haven't logged into these sites)")
-        except Exception:
-            print("  -- Could not read browser cookies (browser might be open or password was denied)")
-    elif env == "local" and needs_cookies and dry_run:
+    if args.safe:
+        return
+
+    print()
+    print("Installing optional channels...")
+    for ch_name in sorted(requested_channels):
+        installer_name = _CHANNEL_INSTALLERS.get(ch_name)
+        if not installer_name:
+            continue
+        installer = globals().get(installer_name)
+        if installer:
+            installer()
+
+
+def _install_phase_cookies(args, config, env: str, requested_channels: set) -> None:
+    """Auto-import browser cookies for cookie-auth channels on local machines."""
+    needs_cookies = bool(requested_channels & _COOKIE_CHANNELS)
+    if env != "local" or not needs_cookies:
+        return
+
+    if args.dry_run:
         print()
         print("[dry-run] Would try to import cookies from Chrome/Firefox")
+        return
 
-    # Environment-specific advice
+    if args.safe:
+        return
+
+    print()
+    print("Importing cookies from browser...")
+    print("  (macOS may ask for your login password to access the Keychain — this is normal,")
+    print("   it only happens once during install. Enter your password or click 'Allow'.)")
+    try:
+        found = _try_browser_cookies("chrome", config)
+        if not found:
+            found = _try_browser_cookies("firefox", config)
+        if not found:
+            print("  -- No cookies found (normal if you haven't logged into these sites)")
+    except Exception:
+        print("  -- Could not read browser cookies (browser might be open or password was denied)")
+
+
+def _try_browser_cookies(browser: str, config) -> bool:
+    """Run the cookie extractor for one browser; print successes; return whether any landed."""
+    from hivereach.cookie_extract import configure_from_browser
+    found = False
+    for platform, success, message in configure_from_browser(browser, config):
+        if success:
+            print(f"  ✅ {platform}: {message}")
+            found = True
+    return found
+
+
+def _install_phase_finalize(args, config, env: str, requested_channels: set) -> None:
+    """Run doctor, install the agent skill, and print closing banner."""
     if env == "server":
         print()
         print("Tip: Bilibili may block server IPs.")
@@ -274,39 +306,37 @@ def _cmd_install(args):
         print("   For Bilibili full access: hivereach configure proxy http://user:pass@ip:port")
         print("   Cheap option: https://www.webshare.io ($1/month)")
 
-    # Test channels
-    if not dry_run:
-        print()
-        print("Testing channels...")
-        results = check_all(config)
-        ok = sum(1 for r in results.values() if r["status"] == "ok")
-        total = len(results)
-
-        # Final status
-        print()
-        print(format_report(results))
-        print()
-
-        # ── Install agent skill ──
-        _install_skill()
-
-        print(f"✅ Installation complete! {ok}/{total} channels active.")
-
-        if not requested_channels:
-            # First install — hint about optional channels
-            print()
-            print("More channels available! Use --channels to install:")
-            print("   hivereach install --channels=twitter,weibo,xiaohongshu,...")
-            print("   hivereach install --channels=all  (install everything)")
-
-        # Star reminder
-        print()
-        print("如果 HiveReach 帮到了你，给个 Star 让更多人发现它吧：")
-        print("   https://github.com/xavierliang/HiveReach")
-        print("   只需一秒，对独立开发者意义很大。谢谢！")
-    else:
+    if args.dry_run:
         print()
         print("Dry run complete. No changes were made.")
+        return
+
+    from hivereach.doctor import check_all, format_report
+    print()
+    print("Testing channels...")
+    results = check_all(config)
+    ok = sum(1 for r in results.values() if r["status"] == "ok")
+    total = len(results)
+
+    print()
+    print(format_report(results))
+    print()
+
+    _install_skill()
+
+    print(f"✅ Installation complete! {ok}/{total} channels active.")
+
+    if not requested_channels:
+        # First install — hint about optional channels
+        print()
+        print("More channels available! Use --channels to install:")
+        print("   hivereach install --channels=twitter,weibo,xiaohongshu,...")
+        print("   hivereach install --channels=all  (install everything)")
+
+    print()
+    print("如果 HiveReach 帮到了你，给个 Star 让更多人发现它吧：")
+    print("   https://github.com/xavierliang/HiveReach")
+    print("   只需一秒，对独立开发者意义很大。谢谢！")
 
 
 def _install_skill():
