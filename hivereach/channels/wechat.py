@@ -20,7 +20,7 @@ def _exa_available() -> bool:
             capture_output=True, encoding="utf-8", errors="replace", timeout=5,
         )
         return "exa" in r.stdout.lower()
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 

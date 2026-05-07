@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -57,8 +60,9 @@ class TwitterChannel(Channel):
                 "twitter-cli 已安装但认证检查失败。运行：\n"
                 "  twitter -v status 查看详细信息"
             )
-        except Exception:
-            return "warn", "twitter-cli 已安装但连接失败"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"twitter-cli check failed: {type(e).__name__}: {e}")
+            return "warn", f"twitter-cli 已安装但连接失败（{type(e).__name__}）"
 
     def _check_bird(self, binary: str):
         try:
@@ -78,5 +82,6 @@ class TwitterChannel(Channel):
             return "warn", (
                 "bird CLI 已安装但认证检查失败。"
             )
-        except Exception:
-            return "warn", "bird CLI 已安装但连接失败"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"bird CLI check failed: {type(e).__name__}: {e}")
+            return "warn", f"bird CLI 已安装但连接失败（{type(e).__name__}）"

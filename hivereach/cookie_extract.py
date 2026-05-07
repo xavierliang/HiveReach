@@ -169,8 +169,10 @@ def _sync_xfetch_session(auth_token: str, ct0: str) -> None:
         with open(session_path, "w", encoding="utf-8") as sf:
             json.dump(session_data, sf, indent=2)
         os.chmod(session_path, 0o600)
-    except Exception:
-        # Non-fatal: hivereach config is the source of truth, xfetch sync is best-effort
+    except OSError:
+        # Non-fatal: hivereach config is the source of truth, xfetch sync is best-effort.
+        # Filesystem errors (permission denied, disk full, read-only volume) are the
+        # only realistic failure mode here; anything else should propagate.
         pass
 
 
@@ -190,8 +192,8 @@ def _sync_bird_env(auth_token: str, ct0: str) -> None:
             f.write(f'AUTH_TOKEN="{auth_token}"\n')
             f.write(f'CT0="{ct0}"\n')
         os.chmod(env_path, 0o600)
-    except Exception:
-        # Non-fatal: hivereach config is the source of truth, bird env sync is best-effort
+    except OSError:
+        # Non-fatal: hivereach config is the source of truth, bird env sync is best-effort.
         pass
 
 

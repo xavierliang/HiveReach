@@ -7,6 +7,9 @@ import re
 import urllib.parse
 import urllib.request
 from typing import Any
+from urllib.error import URLError
+
+from loguru import logger
 
 from .base import Channel
 
@@ -86,7 +89,8 @@ class XueqiuChannel(Channel):
                 return False
             self._inject_cookie_string(cookie_str)
             return True
-        except Exception:
+        except (OSError, ValueError, ImportError) as e:
+            logger.debug(f"xueqiu config-cookie load failed: {type(e).__name__}: {e}")
             return False
 
     def _load_cookies_from_browser(self) -> bool:
@@ -113,7 +117,11 @@ class XueqiuChannel(Channel):
                 for c in cookies:
                     self._cookie_jar.set_cookie(c)
                 return True
-        except Exception:
+        except (OSError, RuntimeError, ValueError) as e:
+            # Browser cookie databases can throw a wide variety of errors
+            # (file locked, schema changed, OS keyring denied, encrypted
+            # values unreadable). All are non-fatal — fall through.
+            logger.debug(f"xueqiu browser-cookie load failed: {type(e).__name__}: {e}")
             return False
 
     def _ensure_cookies(self) -> None:
@@ -170,9 +178,10 @@ class XueqiuChannel(Channel):
             if items:
                 return "ok", "公开 API 可用（行情、搜索、热帖、热股）"
             return "warn", "API 响应异常（返回数据为空）"
-        except Exception as e:
+        except (URLError, OSError, json.JSONDecodeError) as e:
+            logger.debug(f"xueqiu check failed: {type(e).__name__}: {e}")
             return "warn", (
-                f"Xueqiu API 连接失败：{e}。"
+                f"Xueqiu API 连接失败（{type(e).__name__}）：{e}。"
                 "请先登录雪球后运行：hivereach configure --from-browser chrome"
             )
 

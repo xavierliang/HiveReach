@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -158,5 +161,6 @@ class XiaoHongShuChannel(Channel):
                 "xhs-cli 已安装但状态异常。运行：\n"
                 "  xhs -v status 查看详细信息"
             )
-        except Exception:
-            return "warn", "xhs-cli 已安装但连接失败"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"xiaohongshu check failed: {type(e).__name__}: {e}")
+            return "warn", f"xhs-cli 已安装但连接失败（{type(e).__name__}）"

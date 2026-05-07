@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -34,5 +37,6 @@ class ExaSearchChannel(Channel):
                 "mcporter 已装但 Exa 未配置。运行：\n"
                 "  mcporter config add exa https://mcp.exa.ai/mcp"
             )
-        except Exception:
-            return "off", "mcporter 连接异常"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"exa_search mcporter check failed: {type(e).__name__}: {e}")
+            return "off", f"mcporter 连接异常（{type(e).__name__}）"

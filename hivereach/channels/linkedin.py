@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -32,8 +35,8 @@ class LinkedInChannel(Channel):
             )
             if "linkedin" in r.stdout.lower():
                 return "ok", "完整可用（Profile、公司、职位搜索）"
-        except Exception:
-            pass
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"linkedin check failed: {type(e).__name__}: {e}")
         return "off", (
             "mcporter 已装但 LinkedIn MCP 未配置。运行：\n"
             "  pip install linkedin-scraper-mcp\n"

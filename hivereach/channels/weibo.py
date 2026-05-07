@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -38,8 +41,9 @@ class WeiboChannel(Channel):
                     "  pip install git+https://github.com/Panniantong/mcp-server-weibo.git\n"
                     "  mcporter config add weibo --command 'mcp-server-weibo'"
                 )
-        except Exception:
-            return "off", "mcporter 连接异常"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"weibo mcporter config list failed: {type(e).__name__}: {e}")
+            return "off", f"mcporter 连接异常（{type(e).__name__}）"
         try:
             r = subprocess.run(
                 [mcporter, "list", "weibo"], capture_output=True,
@@ -48,5 +52,6 @@ class WeiboChannel(Channel):
             if r.returncode == 0 and "search_users" in r.stdout:
                 return "ok", "完整可用（热搜、搜索、用户动态、评论）"
             return "warn", "MCP 已配置但工具加载失败，检查 mcp-server-weibo 版本"
-        except Exception:
-            return "warn", "MCP 连接异常，检查 mcp-server-weibo 是否可用"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"weibo mcporter list failed: {type(e).__name__}: {e}")
+            return "warn", f"MCP 连接异常（{type(e).__name__}），检查 mcp-server-weibo 是否可用"

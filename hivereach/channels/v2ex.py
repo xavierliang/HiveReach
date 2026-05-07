@@ -4,6 +4,9 @@
 import json
 import urllib.request
 from typing import Any
+
+from loguru import logger
+
 from .base import Channel
 
 _UA = "hivereach/1.0"
@@ -43,7 +46,8 @@ class V2EXChannel(Channel):
             )
             return "ok", "公开 API 可用（热门主题、节点浏览、主题详情、用户信息）"
         except Exception as e:
-            return "warn", f"V2EX API 连接失败（可能需要代理）：{e}"
+            logger.debug(f"v2ex check failed: {type(e).__name__}: {e}")
+            return "warn", f"V2EX API 连接失败（{type(e).__name__}，可能需要代理）：{e}"
 
     # ------------------------------------------------------------------ #
     # Data-fetching methods
@@ -135,7 +139,9 @@ class V2EXChannel(Channel):
                 f"https://www.v2ex.com/api/replies/show.json"
                 f"?topic_id={topic_id}&page=1"
             )
-        except Exception:
+        except (OSError, json.JSONDecodeError) as e:
+            # Replies are optional context; the topic body should still render.
+            logger.debug(f"v2ex replies fetch failed: {type(e).__name__}: {e}")
             replies_raw = []
 
         replies = [

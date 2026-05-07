@@ -42,7 +42,8 @@ class XiaoyuzhouChannel(Channel):
             try:
                 cfg = config if config is not None else Config()
                 has_key = bool(cfg.get("groq_api_key"))
-            except Exception:
+            except (OSError, ValueError):
+                # Config read may fail on a corrupted/unreadable yaml; treat as no key.
                 has_key = False
         if not has_key:
             return "warn", (

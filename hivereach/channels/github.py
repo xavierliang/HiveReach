@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -28,5 +31,6 @@ class GitHubChannel(Channel):
             if r.returncode == 0:
                 return "ok", "完整可用（读取、搜索、Fork、Issue、PR 等）"
             return "warn", "gh CLI 已安装但未认证。运行 gh auth login 可解锁完整功能"
-        except Exception:
-            return "warn", "gh CLI 状态检查失败，运行 gh auth status 查看详情"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"github check failed: {type(e).__name__}: {e}")
+            return "warn", f"gh CLI 状态检查失败（{type(e).__name__}），运行 gh auth status 查看详情"

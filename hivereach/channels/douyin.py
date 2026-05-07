@@ -3,6 +3,9 @@
 
 import shutil
 import subprocess
+
+from loguru import logger
+
 from .base import Channel
 
 
@@ -40,8 +43,9 @@ class DouyinChannel(Channel):
                     "  # 启动服务后：\n"
                     "  mcporter config add douyin http://localhost:18070/mcp"
                 )
-        except Exception:
-            return "off", "mcporter 连接异常"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"douyin mcporter config list failed: {type(e).__name__}: {e}")
+            return "off", f"mcporter 连接异常（{type(e).__name__}）"
         # Verify MCP connectivity by listing available tools instead of
         # calling with a hardcoded (invalid) share link that always fails.
         try:
@@ -52,5 +56,6 @@ class DouyinChannel(Channel):
             if r.returncode == 0 and r.stdout.strip():
                 return "ok", "完整可用（视频解析、下载链接获取）"
             return "warn", "MCP 已连接但工具列表为空，检查 douyin-mcp-server 服务是否在运行"
-        except Exception:
-            return "warn", "MCP 连接异常，检查 douyin-mcp-server 服务是否在运行"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug(f"douyin mcporter list failed: {type(e).__name__}: {e}")
+            return "warn", f"MCP 连接异常（{type(e).__name__}），检查 douyin-mcp-server 服务是否在运行"

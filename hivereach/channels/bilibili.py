@@ -15,12 +15,13 @@ _SEARCH_API = "https://api.bilibili.com/x/web-interface/search/all/v2?keyword=te
 
 def _search_api_ok() -> bool:
     """Return True if Bilibili search API responds with code 0."""
+    from urllib.error import URLError
     req = urllib.request.Request(_SEARCH_API, headers={"User-Agent": _UA})
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read())
             return data.get("code") == 0
-    except Exception:
+    except (URLError, OSError, json.JSONDecodeError):
         return False
 
 
