@@ -153,6 +153,10 @@ Bilibili blocks server IPs. Get a proxy ([Webshare](https://webshare.io) recomme
 
 > Reddit now works free via rdt-cli without any proxy. Local computers don't need a proxy for Bilibili either.
 
+### ⚖️ Ethical Use
+
+HiveReach sends a browser-style `User-Agent` from some channels so requests aren't rejected by default UA filters. Respecting each platform's Terms of Service, rate limits, and robots.txt is on **you**. See [`ethical-use.md`](ethical-use.md) for the ground rules.
+
 ---
 
 ## Status at a Glance

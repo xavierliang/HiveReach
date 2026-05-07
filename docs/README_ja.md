@@ -153,6 +153,10 @@ RedditとBilibiliはサーバーIPをブロックします。プロキシを取�
 
 > ローカルPCではプロキシは不要です。Reddit検索はプロキシなしでもrdt-cliで無料で動作します。
 
+### ⚖️ 倫理的な利用
+
+HiveReach は一部の channel で UA フィルタ回避のためブラウザ風の `User-Agent` を送信します。各プラットフォームの利用規約・レート制限・robots.txt を守るのは**あなた**の責任です。詳細は [`ethical-use.md`](ethical-use.md) を参照してください。
+
 ---
 
 ## 一目でわかるステータス
