@@ -338,9 +338,8 @@ class TestXueqiuChannel:
         assert not ch.can_handle("https://v2ex.com/t/123")
 
     def test_check_ok_when_api_reachable(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         fake_response_data = {
             "data": {
@@ -360,21 +359,20 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_response_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        status, msg = XueqiuChannel().check()
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        status, msg = ch.check()
         assert status == "ok"
         assert "公开 API 可用" in msg
 
     def test_check_warn_when_api_unreachable(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         def raise_error(req, timeout=None):
             raise URLError("connection refused")
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", raise_error)
-        status, msg = XueqiuChannel().check()
+        monkeypatch.setattr(ch._opener, "open", raise_error)
+        status, msg = ch.check()
         assert status == "warn"
         assert "失败" in msg
 
@@ -383,9 +381,8 @@ class TestXueqiuChannel:
     # ------------------------------------------------------------------ #
 
     def test_get_stock_quote(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         fake_data = {
             "data": {
@@ -423,8 +420,8 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        quote = XueqiuChannel().get_stock_quote("SH600519")
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        quote = ch.get_stock_quote("SH600519")
         assert quote["symbol"] == "SH600519"
         assert quote["name"] == "贵州茅台"
         assert quote["current"] == 1800.0
@@ -436,9 +433,8 @@ class TestXueqiuChannel:
     # ------------------------------------------------------------------ #
 
     def test_search_stock(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         fake_data = {
             "stocks": [
@@ -457,8 +453,8 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        results = XueqiuChannel().search_stock("茅台", limit=5)
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        results = ch.search_stock("茅台", limit=5)
         assert len(results) == 2
         assert results[0]["symbol"] == "SH600519"
         assert results[0]["name"] == "贵州茅台"
@@ -469,9 +465,8 @@ class TestXueqiuChannel:
     # ------------------------------------------------------------------ #
 
     def test_get_hot_posts_returns_list(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         # v4 timeline: each item has a JSON-encoded `data` field
         def make_item(id_, title, text, author, likes, target):
@@ -502,8 +497,8 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        posts = XueqiuChannel().get_hot_posts(limit=10)
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        posts = ch.get_hot_posts(limit=10)
         assert len(posts) == 2
         assert posts[0]["id"] == 111
         assert posts[0]["author"] == "投资者A"
@@ -513,9 +508,8 @@ class TestXueqiuChannel:
         assert posts[0]["url"] == "https://xueqiu.com/1234567890/111"
 
     def test_get_hot_posts_respects_limit(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         fake_data = {
             "list": [
@@ -544,8 +538,8 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        posts = XueqiuChannel().get_hot_posts(limit=3)
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        posts = ch.get_hot_posts(limit=3)
         assert len(posts) == 3
 
     # ------------------------------------------------------------------ #
@@ -553,9 +547,8 @@ class TestXueqiuChannel:
     # ------------------------------------------------------------------ #
 
     def test_get_hot_stocks(self, monkeypatch):
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
 
         fake_data = {
             "data": {
@@ -577,8 +570,8 @@ class TestXueqiuChannel:
             def read(self):
                 return json.dumps(fake_data).encode()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", lambda req, timeout=None: FakeResponse())
-        stocks = XueqiuChannel().get_hot_stocks(limit=10, stock_type=10)
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResponse())
+        stocks = ch.get_hot_stocks(limit=10, stock_type=10)
         assert len(stocks) == 3
         assert stocks[0]["symbol"] == "SH600519"
         assert stocks[0]["rank"] == 1
@@ -591,43 +584,36 @@ class TestXueqiuChannel:
 
     def test_ensure_cookies_loads_from_config(self, monkeypatch, tmp_path):
         """_ensure_cookies() should inject cookies from the config file."""
-        import hivereach.channels.xueqiu as xueqiu_mod
+        ch = XueqiuChannel()
+        ch._cookies_initialized = False
 
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", False)
+        # Stub the config-loading method to inject a known cookie string,
+        # and disable the browser-loader so the test is hermetic.
+        def fake_load_from_config():
+            ch._inject_cookie_string("xq_a_token=TESTTOKEN; xq_is_login=1")
+            return True
 
-        # Provide a fake Config that returns a cookie string with xq_a_token
-        class FakeConfig:
-            def get(self, key, default=None):
-                if key == "xueqiu_cookie":
-                    return "xq_a_token=TESTTOKEN; xq_is_login=1"
-                return default
+        monkeypatch.setattr(ch, "_load_cookies_from_config", fake_load_from_config)
+        monkeypatch.setattr(ch, "_load_cookies_from_browser", lambda: False)
 
-        import hivereach.channels.xueqiu as xq_mod
-        monkeypatch.setattr(
-            xq_mod,
-            "_load_cookies_from_config",
-            lambda: (xq_mod._inject_cookie_string("xq_a_token=TESTTOKEN; xq_is_login=1") or True),
-        )
-        monkeypatch.setattr(xq_mod, "_load_cookies_from_browser", lambda: False)
-
-        # Patch opener so no real HTTP call is made
+        # Patch opener so no real HTTP call is made (only used by the
+        # homepage-visit fallback, which we shouldn't reach here)
         class FakeResp:
             def __enter__(self): return self
             def __exit__(self, *_): pass
             def read(self): return b'{"data":{"items":[]}}'
 
-        monkeypatch.setattr(xq_mod._opener, "open", lambda req, timeout=None: FakeResp())
+        monkeypatch.setattr(ch._opener, "open", lambda req, timeout=None: FakeResp())
 
-        xq_mod._ensure_cookies()
-        assert xq_mod._cookies_initialized is True
-        cookie_names = {c.name for c in xq_mod._cookie_jar}
+        ch._ensure_cookies()
+        assert ch._cookies_initialized is True
+        cookie_names = {c.name for c in ch._cookie_jar}
         assert "xq_a_token" in cookie_names
 
     def test_get_json_sends_referer_and_browser_ua(self, monkeypatch):
         """_get_json() must send Referer and a browser-like User-Agent."""
-        import hivereach.channels.xueqiu as xueqiu_mod
-
-        monkeypatch.setattr(xueqiu_mod, "_cookies_initialized", True)
+        ch = XueqiuChannel()
+        ch._cookies_initialized = True
         captured = {}
 
         class FakeResp:
@@ -640,12 +626,25 @@ class TestXueqiuChannel:
             captured["referer"] = req.get_header("Referer")
             return FakeResp()
 
-        monkeypatch.setattr(xueqiu_mod._opener, "open", fake_open)
-        xueqiu_mod._get_json("https://stock.xueqiu.com/v5/stock/batch/quote.json?symbol=SH000001")
+        monkeypatch.setattr(ch._opener, "open", fake_open)
+        ch._get_json("https://stock.xueqiu.com/v5/stock/batch/quote.json?symbol=SH000001")
 
         assert captured["referer"] == "https://xueqiu.com/"
         assert "Mozilla" in captured["ua"]
         assert "hivereach" not in captured["ua"]
+
+    def test_instances_have_independent_cookie_state(self):
+        """Two XueqiuChannel instances must not share cookie state."""
+        a = XueqiuChannel()
+        b = XueqiuChannel()
+        a._inject_cookie_string("xq_a_token=A_TOKEN")
+        b._inject_cookie_string("xq_a_token=B_TOKEN")
+        a_tokens = {c.value for c in a._cookie_jar if c.name == "xq_a_token"}
+        b_tokens = {c.value for c in b._cookie_jar if c.name == "xq_a_token"}
+        assert a_tokens == {"A_TOKEN"}
+        assert b_tokens == {"B_TOKEN"}
+        assert a._opener is not b._opener
+        assert a._cookie_jar is not b._cookie_jar
 
 
 class TestRedditChannel:
